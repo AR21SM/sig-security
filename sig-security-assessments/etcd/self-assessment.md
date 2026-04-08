@@ -167,7 +167,7 @@ These actors use etcd client libraries implementing the v3 API to support applic
 
 # Primary Components
 
-![][image1]
+![Primary Components](images/Primary%20Components.png)
 
 ## Client
 
