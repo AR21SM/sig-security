@@ -3,68 +3,84 @@
 ## **Table of Contents**
 
 1. **[Metadata](#metadata)**
+   * [Version History](#version-history)
+   * [Reviewers](#reviewers)
 
 2. **[Overview](#overview)**
-* [Impact](#impact)
-* [Scope](#scope)
-* [Process level](#process-level)
-* [Technical](#technical)
-* [Not in Scope](#not-in-scope)
+    * [Impact](#impact)
+    * [Scope](#scope)
+       * [Process level](#process-level)
+       * [Technical](#technical)
+    * [Not in Scope](#not-in-scope)
 
 3. **[Communication Channels](#communication-channels)**
-* [Slack channels in Kubernetes Workspace](#slack-channels-in-kubernetes-workspace)
-* [Mailing lists](#mailing-lists)
-* [GitHub tracking](#github-tracking)
-* [Primary Community Contact](#primary-community-contact)
+   * [Slack channels in Kubernetes Workspace](#slack-channels-in-kubernetes-workspace)
+   * [GitHub tracking](#github-tracking)
 
 4. **[Project Overview](#project-overview)**
 
-	4.1 [Project Goals](#project-goals)
+   4.1 [Project Goals](#project-goals)
 
-	4.2 [Project Non-goals](#project-non-goals)
+   4.2 [Project Non-goals](#project-non-goals)
 
-	4.3 [Intended Uses of the Project](#intended-uses-of-the-project)
+   4.3 [Personas](#personas)
 
-	4.4 [Personas](#personas)
+5. **[Primary Components](#primary-components)**
+   * [Client](#client)
+   * [API](#api)
+   * [etcd Server Core](#etcd-server-core)
+   * [Raft Consensus](#raft-consensus)
+     * [Leader election](#leader-election)
+     * [Log replication](#log-replication)
+     * [Membership management](#membership-management)
+     * [Read index](#read-index)
+   * [MVCC Key-Value Store](#mvcc-key-value-store)
+   * [Persistence and Storage](#persistence-and-storage)
 
-	4.5 [Primary Components](#primary-components)
+6. **[Define the scope](#define-the-scope)**
+   * [What workflows are used most?](#what-workflows-are-used-most)
+   * [What workflows does the community want a security assessment of?](#what-workflows-does-the-community-want-a-security-assessment-of)
+   * [What expertise does the team have?](#what-expertise-does-the-team-have)
 
-      * [Boundaries and control plane interactions](#boundaries-and-control-plane-interactions)
+7. **[Technical Questions to Guide the Diagram](#technical-questions-to-guide-the-diagram)**
 
-	4.6 [Data Stores and Data Flows](#data-stores-and-data-flows)
+8. **[Data Stores and Data flow Diagram (DFD) of etcd in Kubernetes](#data-stores-and-data-flow-diagram-dfd-of-etcd-in-kubernetes)**
+   * [01-DF: Etcd High availability](#01-df-etcd-high-availability)
+   * [02-DF: Critical etcd access in Kubernetes](#02-df-critical-etcd-access-in-kubernetes)
+   * [03-DF: Cryptographic Data lifecycle and Integrity](#03-df-cryptographic-data-lifecycle-and-integrity)
+   * [01-SD: Pod lifecycle dataflow](#01-sd-pod-lifecycle-dataflow)
+   * [02-SD: CRUD operations between the API Server and etcd using gRPC](#02-sd-crud-operations-between-the-api-server-and-etcd-using-grpc)
 
-      * [Data Flow diagrams](#data-flow-diagrams)
-      * [Common Flows](#common-flows)
+9. **[Threat Modeling with STRIDE](#threat-modeling-with-stride)**
 
-	4.7 [3rd Party Requirements](#3rd-party-requirements-source-libraries-services-apis)
+   9.1 [Spoofing](#spoofing)
+   * [STRIDE-ETCD-SPOOF-1](#stride-etcd-spoof-1---spoofing-of-etcd-client-identity)
+   * [STRIDE-ETCD-SPOOF-2](#stride-etcd-spoof-2---spoofing-of-etcd-peer-node)
 
-	4.8 [Secure development practices](#secure-development-practices)
+   9.2 [Tampering](#tampering)
+   * [STRIDE-ETCD-TAMPER-1](#stride-etcd-tamper-1---tampering-with-etcd-data-at-rest)
+   * [STRIDE-ETCD-TAMPER-2](#stride-etcd-tamper-2---tampering-via-etcd-snapshot-restore)
 
-	4.9 [Development Workflow](#development-workflow)
+   9.3 [Repudiation](#repudiation)
+   * [STRIDE-ETCD-REPUDIATE-1](#stride-etcd-repudiate-1---direct-etcd-access-bypassing-audit-trails)
 
-      * [Identified gaps in development workflow](#identified-gaps-in-development-workflow)
-      * [Core Infrastructure Initiative](#core-infrastructure-initiative)
+   9.4 [Information Disclosure](#information-disclosure)
+   * [STRIDE-ETCD-INFODISCLOSE-1](#stride-etcd-infodisclose-1---disclosure-of-kubernetes-secrets-from-etcd)
+   * [STRIDE-ETCD-INFODISCLOSE-2](#stride-etcd-infodisclose-2---disclosure-via-etcd-metrics-and-health-endpoints)
 
-5. **[Threat Modeling with STRIDE](#threat-modeling-with-stride)**
+   9.5 [Denial of Service](#denial-of-service)
+   * [STRIDE-ETCD-DOS-1](#stride-etcd-dos-1---exhaustion-of-etcd-storage)
+   * [STRIDE-ETCD-DOS-2](#stride-etcd-dos-2---compaction-and-performance-abuse)
 
-	5.1 [Spoofing](#spoofing)
+   9.6 [Elevation of Privilege](#elevation-of-privilege)
 
-	5.2 [Tampering](#tampering)
+   9.7 [Security issue resolution](#security-issue-resolution)
 
-	5.3 [Repudiation](#repudiation)
-
-	5.4 [Information Disclosure](#information-disclosure)
-
-	5.5 [Denial of Service](#denial-of-service)
-
-	5.6 [Elevation of Privilege](#elevation-of-privilege)
-
-	5.7 [Security issue resolution](#security-issue-resolution)
-
-6. **[References](#references)**
-	* [Docs](#docs)
-	* [Talks](#talks)
-	* [Links](#links)
+10. **[References](#references)**
+    * [Docs](#docs)
+    * [Talks](#talks)
+    * [Links](#links)
+    * [Others](#others)
 
 ----
 
@@ -95,37 +111,58 @@
 |  | Benjamin Wang |  |
 |  | Sherine Khoury |  |
 
-# Overview
+## Overview
 
-A security [self-assessment](https://github.com/kubernetes/sig-security/tree/main/sig-security-assessments) is a subproject, part of the [kubernetes sig-security](https://github.com/kubernetes/sig-security) initiatives. 
+This is a working document describing the security assessment of etcd as part of the Kubernetes SIG Security self-assessment initiative.
 
-The sig-security team will work with project maintainers to create a threat model and assess the current security instance of all or a portion of the project. The resulting assessment will allow maintainers to determine gaps in their project's security and develop a strategy to work toward improving it.
+The SIG Security team collaborates with etcd maintainers and contributors to build a threat model, review current security posture, and identify practical gaps with actionable mitigations.
 
-See all the self assessments write up here: [https://github.com/kubernetes/sig-security/tree/main/sig-security-assessments](https://github.com/kubernetes/sig-security/tree/main/sig-security-assessments)
+### Impact
 
-- [Cluster API Security Self-Assessment](https://github.com/kubernetes/sig-security/blob/main/sig-security-assessments/cluster-api/self-assessment.md)  
-- [vSphere CSI Driver Security Self-Assessment](https://github.com/kubernetes/sig-security/blob/main/sig-security-assessments/vsphere-csi-driver/self-assessment.md)
+This assessment is part of the Kubernetes SIG Security initiative to review
+sub-projects that are critical to the broader Kubernetes ecosystem. etcd serves
+as the sole authoritative data store for all Kubernetes cluster state - direct
+access to etcd bypasses every layer of Kubernetes authentication, authorization,
+and audit control, making it one of the highest-impact targets in any Kubernetes
+deployment.
 
-Meetings notes: [Etcd Self Assessment Meeting Notes](https://docs.google.com/document/d/1AMhGlDyeKrMRUYHxMl7s2cA3vcMrYXC0wQJgaq10hW4/edit?tab=t.0#heading=h.z480elyyrn7n)  
-Folder: [etcd-self-assesments-cncf](https://drive.google.com/drive/folders/1f4zL8xFjAS8tkOD-CCoGnJ92CMVDhZp6?usp=sharing)
+This review is conducted jointly by SIG Security and etcd maintainers to identify
+security gaps, document mitigations, and establish a repeatable process for future
+security review cycles.
 
-Issue: [https://github.com/kubernetes/sig-security/issues/152](https://github.com/kubernetes/sig-security/issues/152)
+### Scope
 
-Example of a SIG Security self-assessment, final output: [https://github.com/kubernetes/sig-security/blob/main/sig-security-assessments/cluster-api/self-assessment.md](https://github.com/kubernetes/sig-security/blob/main/sig-security-assessments/cluster-api/self-assessment.md)
+#### Process level
 
-etcd is a distributed, reliable, and consistent key-value store designed to hold critical configuration data for distributed systems. In Kubernetes, etcd serves as the backing store for all cluster state, including configuration, metadata, and control-plane coordination. It exposes a strongly consistent gRPC-based API and uses the Raft consensus algorithm to maintain data consistency across multiple nodes. etcd supports features such as leader election, watches for change notifications, and transactional operations, enabling components to coordinate reliably in dynamic environments. To ensure availability and durability, etcd is typically deployed as an odd-sized cluster with quorum-based decision-making, secured via mutual TLS authentication, access controls, and optional data-at-rest encryption. Its correctness, performance, and resilience are foundational to the stability and behavior of the Kubernetes control plane.
+Complete an end-to-end self-assessment, solicit and incorporate feedback from SIG Security and etcd maintainers, and refine documentation so the process can be repeated and improved in future review cycles.
 
-# Communication Channels
+#### Technical
 
-### **Slack channels in Kubernetes Workspace**
+This assessment focuses on etcd in Kubernetes control plane environments, including request/data flows, trust boundaries, authentication and transport security controls, data-at-rest considerations, operational workflows (backup/restore, compaction, and maintenance), and STRIDE-based threat analysis.
+
+### Not in Scope
+
+This is not a formal code audit, penetration test, vulnerability scan, or point-in-time security certification. It is intended to guide risk reduction, hardening priorities, and future deeper security work.
+
+## Communication Channels
+
+### Slack channels in Kubernetes Workspace
 
 Visit [https://slack.k8s.io](https://slack.k8s.io) to request an invite
 
-* [\#sig-security-assess-etcd](https://kubernetes.slack.com/archives/C06KZSTBY1L) \- Working channel for this review
+* [#sig-security-assess-etcd](https://kubernetes.slack.com/archives/C06KZSTBY1L) - Working channel for this review
 
-# Project Overview
+### GitHub tracking
 
-## Project Goals
+Tracking issues for this security assessment have been opened as follows:
+
+* Kubernetes SIG Security: https://github.com/kubernetes/sig-security/issues/152
+
+## Project Overview
+
+etcd is a distributed, reliable, and consistent key-value store designed to hold critical configuration data for distributed systems. In Kubernetes, etcd serves as the backing store for all cluster state, including configuration, metadata, and control-plane coordination. It exposes a strongly consistent gRPC-based API and uses the Raft consensus algorithm to maintain data consistency across multiple nodes. etcd supports features such as leader election, watches for change notifications, and transactional operations, enabling components to coordinate reliably in dynamic environments. To ensure availability and durability, etcd is typically deployed as an odd-sized cluster with quorum-based decision-making, secured via mutual TLS authentication, access controls, and optional data-at-rest encryption. Its correctness, performance, and resilience are foundational to the stability and behavior of the Kubernetes control plane.
+
+### Project Goals
 
 * To provide a distributed, reliable key-value store for the most critical data in distributed systems.  
 * To ensure strong consistency and durability guarantees through quorum-based consensus.  
@@ -135,7 +172,7 @@ Visit [https://slack.k8s.io](https://slack.k8s.io) to request an invite
 * To serve as a reliable backing store for coordination and configuration data, including Kubernetes control plane state.  
 * To support safe operational procedures such as cluster membership changes, backup and restore, compaction, and upgrades.
 
-## Project Non-goals
+### Project Non-goals
 
 * To serve as a general-purpose or application-facing database  
 * To provide eventual consistency or relaxed consistency semantics  
@@ -145,87 +182,87 @@ Visit [https://slack.k8s.io](https://slack.k8s.io) to request an invite
 * To eliminate the need for operator involvement in sizing, tuning, or disaster recovery planning  
 * To support unbounded data growth or sustained high-throughput write workloads
 
-## Personas
+### Personas
 
-### System clients
+#### System clients
 
 System clients interact with etcd through the v3 API surface. These clients use clientv3 API semantics, either directly through the clientv3 library or via equivalent language-specific implementations, to store and watch critical system state such as object definitions, configurations, and cluster metadata.
 
 Representative system clients include orchestration and control plane components that rely on etcd as a source of truth.
 
-### Administrative Operators
+#### Administrative Operators
 
 Administrative operators interact with etcd to perform operational and maintenance tasks.
 
 These actors typically use command-line tools such as etcdctl to conduct health checks, manage cluster membership, perform backups and restorations, and carry out other administrative operations against the etcd cluster.
 
-### Application Developer
+#### Application Developer
 
 Application developers build systems that integrate with etcd as a distributed key-value store.
 
 These actors use etcd client libraries implementing the v3 API to support application-level coordination, configuration management, or service discovery. Application developers do not interact with internal etcd components directly and rely on the exposed API surface for all interactions.
 
-# Primary Components
+## Primary Components
 
 ![Primary Components](images/Primary%20Components.png)
 
-## Client
+### Client
 
 Clients include administrative tools such as etcdctl, application and control-plane components using the clientv3 gRPC client library, and other systems that rely on etcd for coordination or state storage.
 
-## API
+### API
 
 Exposes etcd functionality to external clients. Provides a stable, versioned API surface implemented over gRPC Remote Procedure Calls (gRPC), and HTTP where applicable. It is responsible for request admission, basic validation, and routing requests into the etcd server core for processing.
 
-## etcd Server Core
+### etcd Server Core
 
 Coordinates request processing and integrates the API layer with the consensus and storage subsystems.
 
 It is responsible for orchestrating read and write flows, applying committed state changes, enforcing internal limits, and managing background maintenance activities.
 
-## Raft Consensus
+### Raft Consensus
 
 Provides distributed consistency and fault tolerance across the etcd cluster. It ensures that all state changes are agreed upon by a quorum of cluster members before being committed. Raft defines the ordering, replication, and commitment of log entries that represent changes to the key-value store.
 
-### Leader election
+#### Leader election
 
 Establishes a single active leader responsible for coordinating write operations. Leader election ensures progress in the presence of failures while maintaining safety guarantees defined by the Raft protocol.
 
-### Log replication
+#### Log replication
 
 Orders state changes as log entries and replicates them from the leader to follower members. Replication ensures that committed entries are durably recorded on a quorum of nodes before being applied to the state machine.
 
-### Membership management
+#### Membership management
 
-Controls the addition and removal of cluster members using Raft’s membership change mechanisms. This ensures that configuration changes do not violate quorum or consistency guarantees during cluster reconfiguration.
+Controls the addition and removal of cluster members using Raft's membership change mechanisms. This ensures that configuration changes do not violate quorum or consistency guarantees during cluster reconfiguration.
 
-### Read index
+#### Read index
 
-Provides a mechanism for serving linearizable read requests by verifying that the serving node is sufficiently up to date with the committed Raft log. This avoids stale reads without requiring all reads to go through the leader’s log.
+Provides a mechanism for serving linearizable read requests by verifying that the serving node is sufficiently up to date with the committed Raft log. This avoids stale reads without requiring all reads to go through the leader's log.
 
-## MVCC Key-Value Store
+### MVCC Key-Value Store
 
 The MVCC (Multi-Version Concurrency Control) Key-Value Store defines the logical data model of etcd.
 
-It maintains versioned key-value data, supports transactional semantics, and enables consistent reads and watch semantics by tracking revisions over time. This layer represents etcd’s logical state independent of how it is persisted on disk.
+It maintains versioned key-value data, supports transactional semantics, and enables consistent reads and watch semantics by tracking revisions over time. This layer represents etcd's logical state independent of how it is persisted on disk.
 
-## Persistence and Storage
+### Persistence and Storage
 
 The Persistence and Storage layer provides durable storage and crash recovery for etcd state.
 
 It ensures that committed state survives process restarts and node failures by persisting Raft logs and snapshots to disk. This layer underpins both Raft and MVCC by providing reliable on-disk storage primitives.
 
-# Define the scope
+## Define the scope
 
-## What workflows are used most?
+### What workflows are used most?
 
 * **Kubernetes Resource Management:** The most frequent workflows involve kubectl operations (creating, updating, deleting Pods, Services, Deployments, ConfigMaps, Secrets, etc.) which all funnel through the API Server to etcd.  
 * **Controller Operations:** kube-controller-manager and kube-scheduler constantly watch the API Server for changes and write status updates back, constituting a high volume of read-and-write operations.  
 * **State Synchronization/Watches:** Components watching the API Server for changes in cluster state.
 
-## What workflows does the community want a security assessment of?
+### What workflows does the community want a security assessment of?
 
- From a security perspective, the community is most concerned with:
+From a security perspective, the community is most concerned with:
 
 * **Unauthorized Access to etcd:** Preventing direct read/write access to etcd from anything other than authorized kube-apiserver instances.  
 * **Data Tampering:** Ensuring the integrity of data stored in etcd against malicious modification.  
@@ -234,7 +271,9 @@ It ensures that committed state survives process restarts and node failures by p
 * **Backup and Recovery:** Secure and reliable processes for etcd data snapshots and restoration.  
 * **Upgrade/Downgrade Resilience:** Ensuring data consistency and security during etcd cluster lifecycle events.
 
-## What expertise does the team doing the assessment have? Does it match any of the potential flows? Try to get matching expertise for the scope\!
+### What expertise does the team have?
+
+The assessment team should include expertise in the following areas:
 
 * **Distributed Systems & Consensus Algorithms:** Deep understanding of Raft, distributed state management, and fault tolerance. (Matches etcd core functionality, high availability flows).  
 * **Kubernetes Architecture & Control Plane:** Intimate knowledge of how Kubernetes components (API Server, controllers, scheduler, kubelet) interact and rely on etcd. (Matches all defined workflows and technical questions).  
@@ -243,7 +282,7 @@ It ensures that committed state survives process restarts and node failures by p
 * **Linux/Container Security:** Understanding of file system permissions, process isolation within containers, and secure base images. (Matches etcd deployment and backend storage).  
 * **Performance & Scalability:** While not strictly security, understanding performance implications can reveal attack vectors (e.g., DoS) or configuration weaknesses.
 
-# Technical Questions to Guide the Diagram
+## Technical Questions to Guide the Diagram
 
 * **What operations does the API server perform on etcd?** The API Server performs **CRUD (Create, Read, Update, Delete) operations** on Kubernetes resources (Pods, Services, ConfigMaps, Secrets, Deployments, etc.) and also issues **Watch operations** to subscribe to changes. These operations are typically via gRPC.  
 * **How does etcd store Kubernetes state?** Etcd stores Kubernetes state as a **key-value store**. Each Kubernetes object is represented as a key-value pair, typically organized under paths like /registry/pods/default/nginx, /registry/services/default/my-service, /registry/configmaps/default/my-config, etc.  
@@ -262,27 +301,28 @@ It ensures that committed state survives process restarts and node failures by p
 
 * Audit and logging: Verify audit logs capture etcd access and changes, providing traceability and forensic capability in case of security incidents
 
-# Data Stores and Data flow Diagram (DFD) of etcd in Kubernetes
+## Data Stores and Data flow Diagram (DFD) of etcd in Kubernetes
 
-🎯 **Objective**: Visualize how etcd interacts with Kubernetes components, mainly the API Server, for reads/writes and system state management.
+**Objective**: Visualize how etcd interacts with Kubernetes components, mainly the API Server, for reads/writes and system state management.
 
-📌 **Scope**:
+**Scope**:
 
 - **Include:** etcd, kube-apiserver, kube-controller-manager, kube-scheduler, kubectl (user interaction).  
 - **Exclude:** Pod-level communication, worker-node internals (for simplicity, only high-level kubelet interaction is shown for node registration).
 
-Understand what data moves where:  
-	•	API server → etcd (write/read cluster state)  
-	•	etcd → API server (returns data)  
-	•	API server ←→ user (via kubectl)  
-	•	controller-manager ← API server (watch events)  
-	•	scheduler ← API server (unscheduled Pods)  
-	•	controller-manager → API server (updates status)
+Understand what data moves where:
+
+* API server -> etcd (write/read cluster state)
+* etcd -> API server (returns data)
+* API server <-> user (via kubectl)
+* controller-manager <- API server (watch events)
+* scheduler <- API server (unscheduled Pods)
+* controller-manager -> API server (updates status)
 
 SD: Sequence diagram  
 DF: Data flow diagram
 
-## 01-DF: Etcd High availability
+### 01-DF: Etcd High availability
 
 ![01-DF Etcd High Availability](images/01-Etcd%20High%20availability%20Data-Flow.png)
 
@@ -337,7 +377,8 @@ This data flow diagram illustrates etcd high availability in Kubernetes with the
 
 **Best Practices Shown:**
 
-* Odd number of etcd nodes (3, 5, 7): quorum uses an odd number of nodes to prevent "split-brain" scenarios where network issues could make the two halves of a cluster think they are the majority. An odd number ensures that one partition always has more than half the votes.Geographic distribution of nodes  
+* Odd number of etcd nodes (3, 5, 7): quorum uses an odd number of nodes to prevent "split-brain" scenarios where network issues could make the two halves of a cluster think they are the majority. An odd number ensures that one partition always has more than half the votes.
+* Geographic distribution of nodes
 * Multiple API server instances  
 * Client-side load balancing capabilities  
 * Network redundancy and service discovery
@@ -345,7 +386,7 @@ This data flow diagram illustrates etcd high availability in Kubernetes with the
 This architecture ensures that the Kubernetes cluster can survive individual component failures while maintaining data consistency and availability.
 
 
-## 02-DF: Critical etcd access in Kubernetes
+### 02-DF: Critical etcd access in Kubernetes
 
 ![02-DF Critical etcd access in Kubernetes](images/02%20Critical%20etcd%20access%20in%20Kubernetes%20Data-Flow.png)
 
@@ -382,10 +423,10 @@ This comprehensive data flow diagram illustrates the critical security implicati
 
 **Attack Scenarios:**
 
-1. **Compromised etcd node** → Complete cluster takeover  
-2. **Stolen etcd backup** → All secrets and configurations exposed  
-3. **Network access to etcd** → Silent bypass of all Kubernetes security  
-4. **Malicious etcd client** → Undetected data manipulation
+1. **Compromised etcd node** -> Complete cluster takeover
+2. **Stolen etcd backup** -> All secrets and configurations exposed
+3. **Network access to etcd** -> Silent bypass of all Kubernetes security
+4. **Malicious etcd client** -> Undetected data manipulation
 
 **Essential Protection Measures:**
 
@@ -404,7 +445,7 @@ This comprehensive data flow diagram illustrates the critical security implicati
 
 **Key Takeaway:** The API Server acts as the crucial security gateway, providing authentication, authorization, and audit logging that are completely bypassed with direct etcd access. This is why etcd security is paramount \- compromising etcd is equivalent to having unlimited administrative access to the entire Kubernetes cluster.
 
-## 03-DF: Cryptographic Data lifecycle and Integrity
+### 03-DF: Cryptographic Data lifecycle and Integrity
 
 Diagram image: 
 
@@ -424,7 +465,7 @@ This section illustrates **how data is protected from birth to death** and how w
 
 	
 
-## 01-SD: Pod lifecycle dataflow
+### 01-SD: Pod lifecycle dataflow
 
 ![01-SD Pod lifecycle dataflow](images/01-SD%20Pod%20lifecycle%20dataflow.png)
 
@@ -448,7 +489,7 @@ This dataflow shows the key interactions between etcd and Kubernetes components 
 
 This pattern extends to all Kubernetes resources (Services, Deployments, ConfigMaps, etc.) \- they all follow similar interaction patterns with etcd as the persistent storage backend.
 
-## 02-SD: CRUD operations between the API Server and etcd using gRPC
+### 02-SD: CRUD operations between the API Server and etcd using gRPC
 
 ![02-SD CRUD operations between API server and etcd](images/02-SD%20CRUD%20operations.png)
 
@@ -496,38 +537,12 @@ This sequence diagram shows the detailed CRUD and Watch operations between the K
 
 The consistency/atomicity is guaranteed by etcd's consensus protocol (raft). This architecture ensures strong consistency, atomic operations, and real-time change notifications across the entire Kubernetes cluster.
 
-## Choose Data Flow Diagram Level
-
-Start with:  
-	•	Level 0: High-level overview (API Server ↔ etcd)  
-	•	Level 1: Detailed flow between all control plane components
-
-⬅️➡️ Flows:  
-	•	kubectl → API Server: REST call  
-	•	API Server → etcd: Read/Write (gRPC)  
-	•	etcd → API Server: State data  
-	•	Controller Manager → API Server: Watches/Updates  
-	•	Scheduler → API Server: Watches, schedules Pods
-
-## Tools for Drawing
-
-Use one of the following:  
-	•	Draw.io: Rich shapes, ready for DFDs  
-	•	Excalidraw: Good for sketch/prototype  
-	•	Lucidchart: If you want pre-made Kubernetes templates
-
-## Optional Enhancements
-
-If needed, include:  
-	•	TLS/Authentication flows  
-	•	Leader election in controller-manager/scheduler  
-	•	Metrics or observability components (e.g., Prometheus)
-
-# Threat Modeling with STRIDE
+## Threat Modeling with STRIDE
 
 In Kubernetes, **etcd** is the key-value store that serves as the **single source of truth** for cluster state. It stores critical information such as:
 
-* API objects (Pods, ConfigMaps, Secrets, etc.)Cluster configuration and policies
+* API objects (Pods, ConfigMaps, Secrets, etc.)
+* Cluster configuration and policies
 
 * Authentication and authorization data
 
@@ -535,9 +550,9 @@ Because etcd holds the **single source of truth**, it becomes a high-value targe
 
 One of the most widely used frameworks is **STRIDE**, which categorizes threats into six classes: **Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege**.
 
-## 1\. Spoofing
+### Spoofing
 
-### STRIDE-ETCD-SPOOF-1 – Spoofing of etcd client identity
+#### STRIDE-ETCD-SPOOF-1 - Spoofing of etcd client identity
 
 An attacker that obtains etcd client TLS certificates (from disk, backup, snapshot, or compromised control plane node) can impersonate a legitimate etcd client (e.g., kube-apiserver) and read or modify cluster state directly, bypassing Kubernetes RBAC entirely
 
@@ -546,7 +561,7 @@ An attacker that obtains etcd client TLS certificates (from disk, backup, snapsh
 * Full read/write access to Secrets, RBAC, CRDs  
 * Cluster-wide compromise without API server logs
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-SPOOF-1 Recommended Mitigations
 
 * Use **mutual TLS** for etcd client access  
 * Restrict file permissions on etcd client certificates  
@@ -555,39 +570,42 @@ An attacker that obtains etcd client TLS certificates (from disk, backup, snapsh
 * Monitor etcd auth logs for unexpected client identities  
    **Status:** End user guidance / partially implemented
 
-### STRIDE-ETCD-SPOOF-2 – Spoofing of etcd peer node
+#### STRIDE-ETCD-SPOOF-2 - Spoofing of etcd peer node
 
 An attacker-controlled node could impersonate an etcd peer during cluster bootstrapping or reconfiguration, potentially injecting or manipulating cluster state.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-SPOOF-2 Recommended Mitigations
 
 * Mutual TLS for peer traffic  
 * Static peer membership where possible  
 * Disable dynamic peer discovery  
 * Network-level isolation of peer traffic
 
-Threat:  
-	•	An attacker pretends to be an authorized client or peer.  
-	•	Exploits weak authentication between Kubernetes API server and etcd.  
-	•	It can influence leader election in Raft by sending a higher term number to force      re-election and get the cluster into constant state of election
+Threat:
 
-Mitigations:  
-	•	Enforce mutual TLS (mTLS) between peers and clients.  
-	•	Rotate and revoke certificates regularly.  
-	•	Use Role-Based Access Control (RBAC) to restrict who can access etcd directly.
+* An attacker pretends to be an authorized client or peer.
+* Exploits weak authentication between Kubernetes API server and etcd.
+* It can influence leader election in Raft by sending a higher term number to force re-election and keep the cluster in a constant election state.
 
-* \--peer-client-cert-auth=true [https://docs.datadoghq.com/security/default\_rules/5be-7yq-bjy/](https://docs.datadoghq.com/security/default_rules/5be-7yq-bjy/)  
-* \--peer-auto-tls=false https://docs.datadoghq.com/security/default\_rules/t6p-v9r-6k8/  
+Mitigations:
+
+* Enforce mutual TLS (mTLS) between peers and clients.
+* Rotate and revoke certificates regularly.
+* Use Role-Based Access Control (RBAC) to restrict who can access etcd directly.
+* `--peer-client-cert-auth=true`
+  https://docs.datadoghq.com/security/default_rules/5be-7yq-bjy/
+* `--peer-auto-tls=false`
+  https://docs.datadoghq.com/security/default_rules/t6p-v9r-6k8/
   
 
 
-## 2\. Tampering
+### Tampering
 
-### STRIDE-ETCD-TAMPER-1 – Tampering with etcd data at rest
+#### STRIDE-ETCD-TAMPER-1 - Tampering with etcd data at rest
 
 An attacker with filesystem access to etcd data directories can directly manipulate the datastore, WAL files, or snapshots, altering cluster state without leaving Kubernetes audit logs.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-TAMPER-1 Recommended Mitigations
 
 * Enable **encryption at rest** for Secrets  
 * Restrict filesystem access on control plane nodes  
@@ -595,56 +613,60 @@ An attacker with filesystem access to etcd data directories can directly manipul
 * Alert on unexpected etcd restarts  
    **Status:** Partially implemented / End user guidance
 
-### STRIDE-ETCD-TAMPER-2 – Tampering via etcd snapshot restore
+#### STRIDE-ETCD-TAMPER-2 - Tampering via etcd snapshot restore
 
 A malicious or compromised backup/restore pipeline can inject altered etcd snapshots, reintroducing deleted RBAC bindings, Secrets, or CRDs.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-TAMPER-2 Recommended Mitigations
 
 * Sign and verify etcd snapshots  
 * Restrict who can perform restore operations  
 * Audit snapshot creation and restore events  
 * Store backups encrypted and access-controlled
 
-Threat:  
-	•	Malicious modification of stored objects (e.g., changing a ConfigMap, altering RBAC roles).  
-	•	Manipulating etcd data during transit if TLS is misconfigured.
+Threat:
+
+* Malicious modification of stored objects (e.g., changing a ConfigMap, altering RBAC roles).
+* Manipulating etcd data during transit if TLS is misconfigured.
 
 Malicious modification of etcd snapshots during backup/restore.
 
-Mitigations:  
-	•	Enable encryption in transit with TLS.  
-	•	Enable encryption at rest for sensitive objects (e.g., Secrets).  
-	•	Restrict direct access to etcd (only API server should talk to it).  
-	•	Audit policies for data integrity validation.  
+Mitigations:
+
+* Enable encryption in transit with TLS.
+* Enable encryption at rest for sensitive objects (e.g., Secrets).
+* Restrict direct access to etcd (only API server should talk to it).
+* Audit policies for data integrity validation.
 Protect etcd by verifying snapshot hashes, optionally signing backups, and storing them encrypted, immutable, and off-cluster. Restrict direct access with RBAC, isolate etcd on a trusted network, and regularly test restores to detect tampering early.
 
-## 3\. Repudiation
+### Repudiation
 
-### STRIDE-ETCD-REPUDIATE-1 – Direct etcd access bypassing audit trails
+#### STRIDE-ETCD-REPUDIATE-1 - Direct etcd access bypassing audit trails
 
 Actions performed directly against etcd are not recorded in Kubernetes audit logs, allowing attackers to modify cluster state without attribution.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-REPUDIATE-1 Recommended Mitigations
 
 * Restrict etcd access to API server only  
 * Enable etcd request logging  
 * Centralize logs and correlate with node-level events
 
-Threat:  
-	•	Actions against etcd (writes, deletes) without proper audit trails.  
-	•	Difficulty proving malicious changes were made.
+Threat:
 
-Mitigations:  
-	•	Enable Kubernetes audit logging at the API server.  
-	•	Use etcd audit logs (in recent versions) or external logging.  
-	•	Integrate with a SIEM to correlate suspicious activity.
+* Actions against etcd (writes, deletes) without proper audit trails.
+* Difficulty proving malicious changes were made.
+
+Mitigations:
+
+* Enable Kubernetes audit logging at the API server.
+* Use etcd audit logs (in recent versions) or external logging.
+* Integrate with a SIEM to correlate suspicious activity.
 
 [https://palospublishing.com/supporting-audit-logs-with-cryptographic-verification](https://palospublishing.com/supporting-audit-logs-with-cryptographic-verification)
 
-## 4\. Information Disclosure
+### Information Disclosure
 
-### STRIDE-ETCD-INFODISCLOSE-1 – Disclosure of Kubernetes Secrets from etcd
+#### STRIDE-ETCD-INFODISCLOSE-1 - Disclosure of Kubernetes Secrets from etcd
 
 etcd stores Kubernetes Secrets (base64 \+ optionally encrypted). Compromise of etcd or its backups leads to disclosure of:
 
@@ -652,70 +674,74 @@ etcd stores Kubernetes Secrets (base64 \+ optionally encrypted). Compromise of e
 * Cloud provider keys  
 * Service account tokens
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-INFODISCLOSE-1 Recommended Mitigations
 
 * Enable strong encryption-at-rest providers  
 * Protect encryption keys (HSM/KMS-backed)  
 * Rotate encryption keys regularly  
 * Secure etcd backups with encryption and access control
 
-### STRIDE-ETCD-INFODISCLOSE-2 – Disclosure via etcd metrics and health endpoints
+#### STRIDE-ETCD-INFODISCLOSE-2 - Disclosure via etcd metrics and health endpoints
 
 Misconfigured etcd metrics or health endpoints can leak cluster metadata, keys, or internal topology.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-INFODISCLOSE-2 Recommended Mitigations
 
 * Protect metrics endpoints with TLS and auth  
 * Restrict network access to metrics ports  
 * Disable unauthenticated health checks  
    
 
-Threat:  
-	•	Unauthorized read of sensitive objects (Secrets, service tokens).  
-	•	Network sniffing if traffic is unencrypted.  
-	•	Backups of etcd not properly secured.
+Threat:
 
-Mitigations:  
-	•	Use etcd encryption at rest with strong key management (KMS provider).  
-	•	Limit access to etcd data directories and snapshot files.  
-	•	Protect etcd backups (encryption \+ access control).  
-	•	Isolate etcd in a dedicated, hardened network segment.
+* Unauthorized read of sensitive objects (Secrets, service tokens).
+* Network sniffing if traffic is unencrypted.
+* Backups of etcd not properly secured.
+
+Mitigations:
+
+* Use etcd encryption at rest with strong key management (KMS provider).
+* Limit access to etcd data directories and snapshot files.
+* Protect etcd backups (encryption + access control).
+* Isolate etcd in a dedicated, hardened network segment.
 
 [https://docs.cloud.google.com/kubernetes-engine/docs/how-to/rotate-etcd-kcp-encryption-keys](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/rotate-etcd-kcp-encryption-keys)
 
-## 5\. Denial of Service (DoS)
+### Denial of Service
 
-### STRIDE-ETCD-DOS-1 – Exhaustion of etcd storage
+#### STRIDE-ETCD-DOS-1 - Exhaustion of etcd storage
 
 An attacker can create excessive objects (CRDs, events, leases) causing etcd disk exhaustion, leading to API server unavailability.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-DOS-1 Recommended Mitigations
 
 * Enforce resource quotas and object limits  
 * Limit CRD size and count  
 * Monitor etcd disk usage and compaction health  
    
 
-### STRIDE-ETCD-DOS-2 – Compaction and performance abuse
+#### STRIDE-ETCD-DOS-2 - Compaction and performance abuse
 
 Abuse of frequent writes or large objects can increase compaction pressure, causing latency spikes or outages.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-DOS-2 Recommended Mitigations
 
 * Tune compaction settings  
 * Monitor etcd latency and write amplification  
 * Alert on abnormal write rates  
    
 
-Threat:  
-	•	Flooding etcd with requests to exhaust CPU, memory, or disk I/O.  
-	•	Large object storage (e.g., big ConfigMaps, Secrets) causing performance degradation.
+Threat:
 
-Mitigations:  
-	•	Apply resource requests/limits and monitor etcd health.  
-	•	Enforce object size limits and quotas in Kubernetes.  
-	•	Use PodSecurity/NetworkPolicies to restrict access to etcd.  
-	•	Scale etcd cluster with 3–5 nodes for resilience.
+* Flooding etcd with requests to exhaust CPU, memory, or disk I/O.
+* Large object storage (e.g., big ConfigMaps, Secrets) causing performance degradation.
+
+Mitigations:
+
+* Apply resource requests/limits and monitor etcd health.
+* Enforce object size limits and quotas in Kubernetes.
+* Use PodSecurity/NetworkPolicies to restrict access to etcd.
+* Scale etcd cluster with 3-5 nodes for resilience.
 
 [https://www.clouddefense.ai/cve/2020/CVE-2020-15112](https://www.clouddefense.ai/cve/2020/CVE-2020-15112)  
 ..attacker to trigger runtime panics during consensus by manipulating entry indexes.  
@@ -728,11 +754,9 @@ Compared with other storage backends, is etcd more prone to Dos Attack ?
 [https://deepwiki.com/kubernetes-sigs/apiserver-builder-alpha/5.2-alternative-storage-backends](https://deepwiki.com/kubernetes-sigs/apiserver-builder-alpha/5.2-alternative-storage-backends)  
 [https://docs.k3s.io/datastore](https://docs.k3s.io/datastore)
 
-⸻
+### Elevation of Privilege
 
-## 6\. Elevation of Privilege
-
-STRIDE-ETCD-EOP-1 – Elevation of privilege via direct etcd write
+#### STRIDE-ETCD-EOP-1 - Elevation of privilege via direct etcd write
 
 An attacker with write access to etcd can:
 
@@ -740,53 +764,57 @@ An attacker with write access to etcd can:
 * Inject malicious admission configs  
 * Modify API server flags indirectly
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-EOP-1 Recommended Mitigations
 
 * Ensure etcd is not reachable from workloads  
 * Strict node-level hardening  
 * Separate etcd from general-purpose control plane workloads
 
-STRIDE-ETCD-EOP-2 – Compromise of encryption-at-rest keys
+#### STRIDE-ETCD-EOP-2 - Compromise of encryption-at-rest keys
 
 If encryption provider keys stored on disk are compromised, attacker can decrypt historical and future secrets.
 
-**Recommended Mitigations**
+#### STRIDE-ETCD-EOP-2 Recommended Mitigations
 
 * Use external KMS providers  
 * Restrict key access and rotation  
 * Audit key usage  
    
 
-Threat:  
-	•	Attackers with limited cluster role gains access to etcd.  
-	•	Direct read of Secrets leads to cluster-wide privilege escalation.
+Threat:
 
-Mitigations:  
-	•	Restrict etcd access to control plane nodes only.  
-	•	Enforce least privilege RBAC in Kubernetes.  
-	•	Use network policies/firewalls to block non-API access to etcd.  
-	•	Monitor for suspicious privilege escalation attempts.
+* Attackers with limited cluster role gains access to etcd.
+* Direct read of Secrets leads to cluster-wide privilege escalation.
+
+Mitigations:
+
+* Restrict etcd access to control plane nodes only.
+* Enforce least privilege RBAC in Kubernetes.
+* Use network policies/firewalls to block non-API access to etcd.
+* Monitor for suspicious privilege escalation attempts.
 
  It allows a remote attacker to authenticate as a valid RBAC user by exploiting a TLS certificate issue.  
 [https://www.clouddefense.ai/cve/2018/CVE-2018-16886](https://www.clouddefense.ai/cve/2018/CVE-2018-16886)
 
-# References
+### Security issue resolution
 
-## Docs
+## References
+
+### Docs
 
 - [https://etcd.io/docs/v3.6/](https://etcd.io/docs/v3.6/)  
 - Raft in etcd: [https://static.sched.com/hosted\_files/kccncosschn19eng/ea/KubeCon%20China%202019\_%20Raft%20in%20etcd.pdf?\_gl=1\*8xqhls\*\_gcl\_au\*NDQ4NjY4MjYyLjE3NTczMTE1MDU.\*FPAU\*NDQ4NjY4MjYyLjE3NTczMTE1MDU](https://static.sched.com/hosted_files/kccncosschn19eng/ea/KubeCon%20China%202019_%20Raft%20in%20etcd.pdf?_gl=1*8xqhls*_gcl_au*NDQ4NjY4MjYyLjE3NTczMTE1MDU.*FPAU*NDQ4NjY4MjYyLjE3NTczMTE1MDU).   
 - [https://www.microsoft.com/en-us/security/blog/2020/04/02/attack-matrix-kubernetes/](https://www.microsoft.com/en-us/security/blog/2020/04/02/attack-matrix-kubernetes/)
 
-## Talks
+### Talks
 
 - [https://www.youtube.com/watch?v=DrtdrdwDpZE](https://www.youtube.com/watch?v=DrtdrdwDpZE) Deep Dive:etcd \- Jingyi Hu
 
-## Links
+### Links
 
 - PRs that support raft learners in etcd: [\#10725](https://github.com/etcd-io/etcd/pull/10725), [\#10727](https://github.com/etcd-io/etcd/pull/10727), [\#10730](https://github.com/etcd-io/etcd/pull/10730).
 
-## Others
+### Others
 
 - [https://d3fend.mitre.org/resources/](https://d3fend.mitre.org/resources/)  
 - [https://d3fend.mitre.org/resources/ontology/](https://d3fend.mitre.org/resources/ontology/)  
