@@ -162,8 +162,6 @@ Tracking issues for this security assessment have been opened as follows:
 
 etcd is a distributed, reliable, and consistent key-value store designed to hold critical configuration data for distributed systems. In Kubernetes, etcd serves as the backing store for all cluster state, including configuration, metadata, and control-plane coordination. It exposes a strongly consistent gRPC-based API and uses the Raft consensus algorithm to maintain data consistency across multiple nodes. etcd supports features such as leader election, watches for change notifications, and transactional operations, enabling components to coordinate reliably in dynamic environments. To ensure availability and durability, etcd is typically deployed as an odd-sized cluster with quorum-based decision-making, secured via mutual TLS authentication, access controls, and optional data-at-rest encryption. Its correctness, performance, and resilience are foundational to the stability and behavior of the Kubernetes control plane.
 
-## Project Overview
-
 ## Project Goals
 
 * To provide a distributed, reliable key-value store for the most critical data in distributed systems.  
